@@ -33,9 +33,16 @@ export async function POST(req: Request) {
 
   const openrouter = createOpenRouter({ apiKey });
 
+  // Model nie ma zegara, więc podajemy mu dzisiejszą datę (czas polski).
+  const today = new Intl.DateTimeFormat("pl-PL", {
+    dateStyle: "full",
+    timeZone: "Europe/Warsaw",
+  }).format(new Date());
+
   // Cała dotychczasowa rozmowa idzie do modelu, więc zna poprzednie wiadomości.
   const result = streamText({
     model: openrouter(modelId),
+    system: `Dzisiaj jest ${today}.`,
     messages: await convertToModelMessages(messages),
   });
 
