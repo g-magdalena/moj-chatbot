@@ -235,6 +235,12 @@ h1 {
   font-weight: 600;
 }
 
+.reasons {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-weight: 400;
+}
+
 .result h2 {
   font-size: 1.05rem;
   margin: 16px 0 8px;

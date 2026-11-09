@@ -4,13 +4,13 @@ import { cookies } from "next/headers";
 import {
   ANALYSIS_JSON_SCHEMA,
   type AnalysisResult,
+  applyServerReview,
   describeProviderError,
   interpretModelOutput,
+  readAnalyzeRequest,
 } from "@/lib/analysis";
 import { SESSION_COOKIE, isValidSession } from "@/lib/auth";
 import { buildAnalysisInput, buildAnalysisPrompt } from "@/lib/studio-nova";
-
-const MAX_MESSAGE_LENGTH = 4000;
 
 const STATUS: Record<string, number> = {
   refusal: 422,
@@ -47,22 +47,12 @@ export async function POST(req: Request) {
     });
   }
 
-  let message = "";
-  try {
-    const body = await req.json();
-    if (typeof body?.message === "string") message = body.message.trim();
-  } catch {
-    // Zły format zapytania obsługujemy jak pustą wiadomość.
+  // Zły format zapytania obsługujemy jak pustą wiadomość.
+  const input = readAnalyzeRequest(await req.json().catch(() => null));
+  if (!input.ok) {
+    return Response.json({ ok: false, code: "input", message: input.message }, { status: 400 });
   }
-  if (!message) {
-    return Response.json({ ok: false, code: "input", message: "Wklej treść wiadomości do analizy." }, { status: 400 });
-  }
-  if (message.length > MAX_MESSAGE_LENGTH) {
-    return Response.json(
-      { ok: false, code: "input", message: `Wiadomość jest za długa (maks. ${MAX_MESSAGE_LENGTH} znaków).` },
-      { status: 400 },
-    );
-  }
+  const message = input.message;
 
   const now = new Intl.DateTimeFormat("pl-PL", {
     dateStyle: "full",
@@ -84,11 +74,13 @@ export async function POST(req: Request) {
       output: Output.object({ schema: jsonSchema(ANALYSIS_JSON_SCHEMA), name: "studio_nova_analysis" }),
     });
 
-    return respond(interpretModelOutput({ text: result.text, finishReason: result.finishReason }));
+    const checked = interpretModelOutput({ text: result.text, finishReason: result.finishReason });
+    return respond(checked.ok ? applyServerReview(checked.analysis, message) : checked);
   } catch (error) {
     if (NoObjectGeneratedError.isInstance(error)) {
       // Model coś zwrócił, ale to nie jest JSON. Ustalamy dlaczego.
-      return respond(interpretModelOutput({ text: error.text, finishReason: error.finishReason }));
+      const checked = interpretModelOutput({ text: error.text, finishReason: error.finishReason });
+      return respond(checked.ok ? applyServerReview(checked.analysis, message) : checked);
     }
     console.error(error);
     return respond(describeProviderError(error));

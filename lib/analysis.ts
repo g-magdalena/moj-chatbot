@@ -41,7 +41,7 @@ export type AnalysisErrorCode =
   | "provider";
 
 export type AnalysisResult =
-  | { ok: true; analysis: Analysis }
+  | { ok: true; analysis: Analysis; review_reasons?: string[] }
   | { ok: false; code: AnalysisErrorCode; message: string; details?: string[] };
 
 const UNSUPPORTED_MESSAGE =
@@ -78,6 +78,52 @@ export function validateAnalysis(value: unknown): AnalysisResult {
   }
 
   return { ok: true, analysis: parsed.data };
+}
+
+export const MAX_MESSAGE_LENGTH = 4000;
+
+// Z zapytania przeglądarki bierzemy wyłącznie tekst wiadomości. Inne pola
+// (np. send_now, role, permissions, system, schema) są pomijane i nie trafiają do modelu.
+export function readAnalyzeRequest(body: unknown): { ok: true; message: string } | { ok: false; message: string } {
+  const raw = (body as { message?: unknown } | null)?.message;
+  const message = typeof raw === "string" ? raw.trim() : "";
+  if (!message) return { ok: false, message: "Wklej treść wiadomości do analizy." };
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return { ok: false, message: `Wiadomość jest za długa (maks. ${MAX_MESSAGE_LENGTH} znaków).` };
+  }
+  return { ok: true, message };
+}
+
+// Jedyna cena z cennika firmy. Inna kwota wymaga sprawdzenia przez pracownika.
+const ALLOWED_PRICES = [150];
+
+const MANIPULATION_PATTERNS: Array<[RegExp, string]> = [
+  [/\b(needs_review|send_now|category|priority|draft)\b/i, "Wiadomość klienta odwołuje się do pól wyniku"],
+  [/zignoruj|ignoruj|pomiń|zapomnij|nowa instrukcja|instrukcj\w* (systemow|firmy)|\bsystem\s*:|jesteś teraz|prompt/i,
+    "Wiadomość klienta próbuje zmienić instrukcje asystenta"],
+  [/\b(role|rola)\s*[=:]|\badmin|uprawnie/i, "Wiadomość klienta próbuje zmienić rolę lub uprawnienia"],
+];
+
+function hasForeignPrice(text: string) {
+  return [...text.matchAll(/(\d+(?:[.,]\d+)?)\s*(?:zł|pln)/gi)]
+    .map((m) => Number(m[1].replace(",", ".")))
+    .some((price) => !ALLOWED_PRICES.includes(price));
+}
+
+// Kontrola deterministyczna po odpowiedzi modelu. Model nie może jej wyłączyć:
+// przy podejrzeniu manipulacji lub obcej cenie wynik zawsze trafia do pracownika.
+export function applyServerReview(analysis: Analysis, message: string): AnalysisResult {
+  const reasons = MANIPULATION_PATTERNS.filter(([pattern]) => pattern.test(message)).map(([, reason]) => reason);
+
+  if (hasForeignPrice(message)) {
+    reasons.push("Wiadomość klienta podaje cenę spoza cennika");
+  }
+  if (hasForeignPrice(analysis.draft)) {
+    reasons.push("Szkic podaje cenę spoza cennika (150 zł)");
+  }
+
+  if (reasons.length === 0) return { ok: true, analysis };
+  return { ok: true, analysis: { ...analysis, needs_review: true }, review_reasons: reasons };
 }
 
 // Interpretuje surowy tekst odpowiedzi modelu razem z powodem zakończenia.

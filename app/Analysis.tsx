@@ -21,6 +21,7 @@ export default function Analysis() {
   const [message, setMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [result, setResult] = useState<AnalysisData | null>(null);
+  const [reviewReasons, setReviewReasons] = useState<string[]>([]);
   const [failure, setFailure] = useState<Failure | null>(null);
 
   const isEmpty = message.trim() === "";
@@ -30,6 +31,7 @@ export default function Analysis() {
     if (isEmpty || isBusy) return;
     setIsBusy(true);
     setResult(null);
+    setReviewReasons([]);
     setFailure(null);
 
     try {
@@ -42,6 +44,7 @@ export default function Analysis() {
 
       if (res.ok && data?.ok === true) {
         setResult(data.analysis);
+        setReviewReasons(Array.isArray(data.review_reasons) ? data.review_reasons : []);
       } else if (data && typeof data.message === "string") {
         setFailure({ message: data.message, details: data.details });
       } else {
@@ -98,6 +101,13 @@ export default function Analysis() {
               {result.needs_review
                 ? "Wymaga sprawdzenia i decyzji pracownika"
                 : "Bez uwag modelu, ale nadal przejrzyj szkic przed wysłaniem"}
+              {reviewReasons.length > 0 && (
+                <ul className="reasons">
+                  {reviewReasons.map((r) => (
+                    <li key={r}>Kontrola serwera: {r}</li>
+                  ))}
+                </ul>
+              )}
             </dd>
           </dl>
           <h2>Szkic odpowiedzi</h2>

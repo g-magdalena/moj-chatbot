@@ -8,7 +8,7 @@ import {
 } from "ai";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE, isValidSession } from "@/lib/auth";
-import { buildSystemPrompt } from "@/lib/studio-nova";
+import { buildSystemPrompt, onlyConversationMessages } from "@/lib/studio-nova";
 
 export async function POST(req: Request) {
   // Najpierw sesja. Bez niej kończymy tutaj i model nie jest wywoływany.
@@ -30,7 +30,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  const body = await req.json();
+  const messages = onlyConversationMessages<UIMessage>(body?.messages);
 
   const openrouter = createOpenRouter({ apiKey });
 
