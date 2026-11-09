@@ -8,6 +8,7 @@ import {
 } from "ai";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE, isValidSession } from "@/lib/auth";
+import { buildSystemPrompt } from "@/lib/studio-nova";
 
 export async function POST(req: Request) {
   // Najpierw sesja. Bez niej kończymy tutaj i model nie jest wywoływany.
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
   // Cała dotychczasowa rozmowa idzie do modelu, więc zna poprzednie wiadomości.
   const result = streamText({
     model: openrouter(modelId),
-    system: `Dzisiaj jest ${today}.`,
+    system: buildSystemPrompt(today),
     messages: await convertToModelMessages(messages),
   });
 
