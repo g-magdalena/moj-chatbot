@@ -3,10 +3,12 @@
 import { useChat } from "@ai-sdk/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Analysis from "./Analysis";
 
 export default function Chat() {
   const { messages, sendMessage, status, error } = useChat();
   const [input, setInput] = useState("");
+  const [mode, setMode] = useState<"chat" | "analysis">("chat");
   const router = useRouter();
 
   const isBusy = status === "submitted" || status === "streaming";
@@ -33,39 +35,65 @@ export default function Chat() {
         </button>
       </header>
 
-      <section className="messages" aria-label="Rozmowa">
-        {messages.map((message) => (
-          <div key={message.id} className={`message ${message.role}`}>
-            <strong>{message.role === "user" ? "Ty" : "Chatbot"}</strong>
-            {message.parts.map((part, i) =>
-              part.type === "text" ? (
-                <p key={`${message.id}-${i}`}>{part.text}</p>
-              ) : null,
-            )}
-          </div>
-        ))}
-
-        {status === "submitted" && <p className="status">Chatbot myśli…</p>}
-
-        {error && (
-          <p className="error" role="alert">
-            {error.message || "Coś poszło nie tak. Spróbuj ponownie."}
-          </p>
-        )}
-      </section>
-
-      <form className="composer" onSubmit={handleSubmit}>
-        <input
-          type="text"
-          placeholder="Napisz wiadomość..."
-          aria-label="Wiadomość"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-        />
-        <button type="submit" disabled={isEmpty || isBusy}>
-          {isBusy ? "Czekaj…" : "Wyślij"}
+      <nav className="tabs" aria-label="Tryb">
+        <button
+          type="button"
+          className={mode === "chat" ? "tab active" : "tab"}
+          aria-pressed={mode === "chat"}
+          onClick={() => setMode("chat")}
+        >
+          Czat
         </button>
-      </form>
+        <button
+          type="button"
+          className={mode === "analysis" ? "tab active" : "tab"}
+          aria-pressed={mode === "analysis"}
+          onClick={() => setMode("analysis")}
+        >
+          Analiza wiadomości
+        </button>
+      </nav>
+
+      {/* Oba tryby zostają w pamięci, więc przełączanie nie kasuje rozmowy ani wyniku. */}
+      <div className="mode" hidden={mode !== "analysis"}>
+        <Analysis />
+      </div>
+
+      <div className="mode" hidden={mode !== "chat"}>
+        <section className="messages" aria-label="Rozmowa">
+          {messages.map((message) => (
+            <div key={message.id} className={`message ${message.role}`}>
+              <strong>{message.role === "user" ? "Ty" : "Chatbot"}</strong>
+              {message.parts.map((part, i) =>
+                part.type === "text" ? (
+                  <p key={`${message.id}-${i}`}>{part.text}</p>
+                ) : null,
+              )}
+            </div>
+          ))}
+
+          {status === "submitted" && <p className="status">Chatbot myśli…</p>}
+
+          {error && (
+            <p className="error" role="alert">
+              {error.message || "Coś poszło nie tak. Spróbuj ponownie."}
+            </p>
+          )}
+        </section>
+
+        <form className="composer" onSubmit={handleSubmit}>
+          <input
+            type="text"
+            placeholder="Napisz wiadomość..."
+            aria-label="Wiadomość"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+          />
+          <button type="submit" disabled={isEmpty || isBusy}>
+            {isBusy ? "Czekaj…" : "Wyślij"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
